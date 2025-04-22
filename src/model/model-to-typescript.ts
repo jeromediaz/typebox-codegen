@@ -136,6 +136,15 @@ export namespace ModelToTypeScript {
   function Void(schema: Types.TVoid) {
     return `void`
   }
+  function Enum(schema: Types.TEnum) {
+    return schema.enum.map((value: string) => `'${value}'`).join(' | ');
+  }
+  function IsUnsafeDate(schema: Types.TSchema) {
+    return schema.type === 'string' && ['date', 'date-time'].indexOf(schema.format) !== -1;
+  }
+  function IsEnum(schema: Types.TSchema) {
+    return (schema.type === 'string' && global.Array.isArray(schema.enum))
+  }
   function Visit(schema: Types.TSchema): string {
     if (reference_map.has(schema.$id!)) return schema.$id!
     if (schema.$id !== undefined) reference_map.set(schema.$id, schema)
@@ -164,6 +173,9 @@ export namespace ModelToTypeScript {
     if (Types.TypeGuard.IsUnion(schema)) return Union(schema)
     if (Types.TypeGuard.IsUnknown(schema)) return Unknown(schema)
     if (Types.TypeGuard.IsVoid(schema)) return Void(schema)
+    if (IsUnsafeDate(schema)) return String(schema as Types.TString);
+    if (IsEnum(schema)) return Enum(schema as Types.TEnum);
+
     return 'unknown'
   }
   export function GenerateType(model: TypeBoxModel, $id: string) {
@@ -178,11 +190,10 @@ export namespace ModelToTypeScript {
     const definitions: string[] = []
     for (const type of model.types) {
       const definition = `export type ${type.$id!} = ${Visit(type)}`
-      const assertion = `export const ${type.$id!} = (() => { ${TypeCompiler.Code(type, model.types, { language: 'typescript' })} })();`
-      const rewritten = assertion.replaceAll(`return function check(value: any): boolean`, `return function check(value: any): value is ${type.$id!}`)
+      //const assertion = `export const ${type.$id!} = (() => { ${TypeCompiler.Code(type, model.types, { language: 'typescript' })} })();`
+      //const rewritten = assertion.replaceAll(`return function check(value: any): boolean`, `return function check(value: any): value is ${type.$id!}`)
       definitions.push(`
       ${definition}
-      ${rewritten}
       `)
     }
     const output = [...definitions]
